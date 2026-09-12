@@ -5,8 +5,8 @@
 
 ## tabla de secciones
 
--[archivo](#archivos)
--[contenido](#contenido)
--[dependencias](#dependencias)
+- [archivo](#archivos)
+- [contenido](#contenido)
+- [dependencias](#dependencias)
 
 ## archivos
