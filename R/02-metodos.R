@@ -207,134 +207,64 @@ ajustar_dmm <- function(y, k) {
 
 # 5 regresion lineal, 6 tendencia cuadratica, 7 tendencia exponencial
 
-
 ajustar_tendencia <- function(y, tipo = c("lineal", "cuadratica", "exponencial"),
                               corregir_sesgo = FALSE) {
   
-  tipo <- match.arg(tipo)
-  T_obs <- length(y)
+  tipo   <- match.arg(tipo)
+  T_obs  <- length(y)
   t_vect <- seq_len(T_obs)
   
-  
-  
-  # tendencia lineal
-  
- if (tipo == "lineal") {
-   
-   # matriz para t lineal
-   X_lineal <- cbind(1, t_vect)
-   # solve(resuelve la ecuaciaon) crossprod( producto punto entre matriz y vector)
-   beta_lineal <- solve(crossprod(X_lineal), crossprod(X_lineal, y))
-   beta_lineal <- as.vector(beta_lineal)
-   
-   ajustados_Li <- as.vector(X_lineal %*% beta_lineal)
-   residuo_lin <- y - ajustados_Li
-   
-   coef_Nom <- c("beta0", "beta1")
-   
-   return(X_lineal)
-   return(beta_lineal)
-   return(coef_Nom)
-   
- }
-  
-  
-   # Tendencia cuadratica
-  
- if (tipo == "cuadratica")  {
-   
-   # matriz para cuadratica
-   X_cuadra <- cbind(1, t_vect , t_vect^2)
-   beta_cuad <- solve(crossprod(X_cuadra), crossprod(X_cuadra, y))
-   beta_cuad <- as.vector(beta_cuad)
-   
-   ajustados_cua <- as.vector(X_cuadra %*% beta_cuad)
-   residuo_cua <- y - ajustados_cua
-   
-   resul <- NULL
-   
- }
-  
-  # tendencia exponencial
-  
-  if (tipo == "exponencial"){
-    
-    if (any(y <= 0)) {
-      stop("Hay valores negativos en la serie")
+  Tabla_modelo <- function(modelo, beta = NULL, residuos = NULL, nombres_coef = NULL) {
+    if (is.list(modelo)) {
+      X            <- modelo$X
+      beta         <- modelo$beta
+      residuos     <- modelo$residuos
+      nombres_coef <- modelo$nombres_coef
+    } else {
+      X <- modelo
     }
     
+    beta     <- as.vector(beta)
+    residuos <- as.vector(residuos)
     
-    # matriz Exponencial
-    trans_y <- log(y)     # tranformacion de los datos para lineacion
-    X_exp <- cbind(1, t_vect)
-    beta_ln <- solve(crossprod(X_exp), crossprod(X_exp, y))
-    beta_ln <- as.vector(beta_ln)
+    n <- nrow(X)
+    k <- ncol(X)
     
-    residuos_trans <- trans_y - as.vector(X_exp %*% beta_ln)
-    sigma2_trans <- sum(residuos_trans^2) / (T_obs-2)
-    
-    # betas originales
-    beta_0or <- exp(beta_ln[1])
-    beta_1or <- exp(beta_ln[2])
-    
-    # correcion de sesgo
-    
-    fact_sesgo <- if(corregir_sesgo) exp(sigma2_trans/2) else 1
-    
-    ajustados_exp <- beta_0or * beta_1or^T_obs * fact_sesgo
-    residuos_exp <- y - ajustados_exp
-    
-    resul = NULL
-    
-    
-    
-  }
-  
-  
-  Tabla_modelo <- function(X, beta, residuos, nombres_coef) {
-    n      <- nrow(X)
-    k      <- ncol(X)
-    # Rezagos para barlett
-    lag <- floor(4 * (n / 100)^(2 / 9))
+    lag    <- floor(4 * (n / 100)^(2 / 9))
     sigma2 <- sum(residuos^2) / (n - k)
     
-    #matriz para barlett
     Xe <- X * residuos
-    S <-  crossprod(Xe)
+    S  <- crossprod(Xe)
     
     for (l in seq_len(lag)) {
-      w    <- 1 - l / (lag + 1)               # peso Bartlett
+      if (l >= n) break
+      w       <- 1 - l / (lag + 1)
       Gamma_l <- crossprod(Xe[(l + 1):n, , drop = FALSE],
-                           Xe[1:(n - l),  , drop = FALSE])
-      S <- S + w * (Gamma_l + t(Gamma_l))
+                           Xe[1:(n - l), , drop = FALSE])
+      S       <- S + w * (Gamma_l + t(Gamma_l))
     }
-    
     
     XtX_inv <- solve(crossprod(X))
     V_rob   <- XtX_inv %*% S %*% XtX_inv
     
-    se_ord <- sqrt(pmax(diag(sigma2 * XtX_inv), 0))   # SE ordinario
-    
-    # SE robusto
-    se_rob <- sqrt(pmax(diag(V_rob), 0))            
+    se_ord <- sqrt(pmax(diag(sigma2 * XtX_inv), 0))
+    se_rob <- sqrt(pmax(diag(V_rob), 0))
     
     t_stat <- beta / se_rob
     p_val  <- 2 * pt(abs(t_stat), df = n - k, lower.tail = FALSE)
     
-    # R²
-    y_usado <- X %*% beta + residuos          # y original (o ln y)
+    y_usado <- as.vector(X %*% beta + residuos)
     ss_tot  <- sum((y_usado - mean(y_usado))^2)
     ss_res  <- sum(residuos^2)
     r2      <- 1 - ss_res / ss_tot
     
-    # Durbin-Watson
     dw <- sum(diff(residuos)^2) / ss_res
     
-    tabla <- tibble::tibble(
-      coeficiente = nombres_coef,
-      estimacion  = beta,
-      se_ordinario = se_ord,
-      se_robusto   = se_rob,
+    tabla <- dplyr::tibble(
+      coeficiente   = nombres_coef,
+      estimacion    = beta,
+      se_ordinario  = se_ord,
+      se_robusto    = se_rob,
       t_estadistico = t_stat,
       p_valor       = p_val
     )
@@ -342,28 +272,100 @@ ajustar_tendencia <- function(y, tipo = c("lineal", "cuadratica", "exponencial")
     list(tabla = tabla, r2 = r2, sigma2 = sigma2, dw = dw)
   }
   
+  # Tendencia Lineal
   if (tipo == "lineal") {
-    resultado_final <- Tabla_modelo(X_lineal, beta_lineal, coef_Nom)
-    return(resultado_final)
+    X_lineal    <- cbind(1, t_vect)
+    beta_lineal <- solve(crossprod(X_lineal), crossprod(X_lineal, y))
+    beta_lineal <- as.vector(beta_lineal)
+    
+    ajustados_Li <- as.vector(X_lineal %*% beta_lineal)
+    residuo_lin  <- y - ajustados_Li
+    
+    resul   <- list(
+      X            = X_lineal,
+      beta         = beta_lineal,
+      residuos     = residuo_lin,
+      nombres_coef = c("beta0", "beta1")
+    )
+    # FIX 3: definir fitted y residuos para el invisible()
+    fitted   <- ajustados_Li
+    residuos <- residuo_lin
   }
   
+  # Tendencia Cuadrática
+  if (tipo == "cuadratica") {
+    X_cuadra  <- cbind(1, t_vect, t_vect^2)
+    beta_cuad <- solve(crossprod(X_cuadra), crossprod(X_cuadra, y))
+    beta_cuad <- as.vector(beta_cuad)
+    
+    ajustados_cua <- as.vector(X_cuadra %*% beta_cuad)
+    residuo_cua   <- y - ajustados_cua
+    
+    resul <- list(
+      X            = X_cuadra,
+      beta         = beta_cuad,
+      residuos     = residuo_cua,
+      nombres_coef = c("beta0", "beta1", "beta2")
+    )
+    # FIX 3: definir fitted y residuos para el invisible()
+    fitted   <- ajustados_cua
+    residuos <- residuo_cua
+  }
+  
+  # Tendencia Exponencial
+  if (tipo == "exponencial") {
+    if (any(y <= 0)) stop("Hay valores negativos o ceros en la serie")
+    
+    #  matriz para exponencial
+    trans_y <- log(y)
+    X_exp   <- cbind(1, t_vect)
+    beta_ln <- solve(crossprod(X_exp), crossprod(X_exp, trans_y)) 
+    beta_ln <- as.vector(beta_ln)
+    
+    residuos_trans <- trans_y - as.vector(X_exp %*% beta_ln)
+    sigma2_trans   <- sum(residuos_trans^2) / (T_obs - 2)
+    
+    # 
+    beta_0or <- exp(beta_ln[1])
+    beta_1or <- exp(beta_ln[2])
+    
+    fact_sesgo <- if (corregir_sesgo) exp(sigma2_trans / 2) else 1
+    
+  
+    ajustados_exp <- beta_0or * beta_1or^t_vect * fact_sesgo   
+    residuos_exp  <- y - ajustados_exp
+    
+    resul <- list(
+      X            = X_exp,
+      beta         = beta_ln,
+      residuos     = residuos_trans,
+      nombres_coef = c("beta0", "beta1")
+    )
+    # FIX 3: definir fitted y residuos para el invisible()
+    fitted   <- ajustados_exp
+    residuos <- residuos_exp
+  }
+  
+  # Mostrar en consola
+  res <- Tabla_modelo(resul)
+  
   print(res$tabla, digits = 4)
-  cat(sprintf("\nR²      = %.6f", res$r2))
-  cat(sprintf("\nσ²      = %.6f", res$sigma2))
+  cat(sprintf("\nR²            = %.6f", res$r2))
+  cat(sprintf("\nσ²            = %.6f", res$sigma2))
   cat(sprintf("\nDurbin-Watson = %.4f\n", res$dw))
   
   invisible(list(
     tipo       = tipo,
-    fitted     = fitted,
-    residuos   = residuos,
+    fitted     = fitted,     # FIX 3: ahora definido en cada bloque
+    residuos   = residuos,   # FIX 3: ahora definido en cada bloque
     parametros = res$tabla,
     r2         = res$r2,
     sigma2     = res$sigma2,
     dw         = res$dw
   ))
-  
-  
 }
+
+
 
 
 
@@ -371,7 +373,65 @@ ajustar_tendencia <- function(y, tipo = c("lineal", "cuadratica", "exponencial")
   
 ajustar_holt <- function(y, alpha, beta) {
   
+  T_obs <- length(y)
   
+  # Validaciones
+  if (alpha <= 0 | alpha >= 1) stop("alpha debe estar entre 0 y 1")
+  if (beta  <= 0 | beta  >= 1) stop("beta debe estar entre 0 y 1")
+  
+  # Vectores para trayectorias
+  L      <- numeric(T_obs)   # nivel
+  Tend   <- numeric(T_obs)   # pendiente (T_hat)
+  fitted <- numeric(T_obs)   # Yhat_t
+  
+  # Forma 1: Ecuaciones estandar
+  # Calentamiento
+  L[1]      <- y[1]
+  Tend[1]   <- 0
+  fitted[1] <- y[1]   # Yhat_1 = Y_1 (sin pronostico real)
+  
+  for (t in 2:T_obs) {
+    Yhat_t  <- L[t-1] + Tend[t-1]        # pronostico para t
+    fitted[t] <- Yhat_t
+    L[t]    <- alpha * y[t] + (1 - alpha) * Yhat_t          # nivel
+    Tend[t] <- beta * (L[t] - L[t-1]) + (1 - beta) * Tend[t-1]  # pendiente
+  }
+  
+  residuals <- y - fitted
+  
+  # Forma 2: Correccion de error (verificacion)
+  L2    <- numeric(T_obs)
+  Tend2 <- numeric(T_obs)
+  
+  L2[1]    <- y[1]
+  Tend2[1] <- 0
+  
+  for (t in 2:T_obs) {
+    e_t      <- y[t] - (L2[t-1] + Tend2[t-1])     # error
+    L2[t]    <- L2[t-1] + Tend2[t-1] + alpha * e_t          # nivel corregido
+    Tend2[t] <- Tend2[t-1] + alpha * beta * e_t             # pendiente corregida
+  }
+  
+  # Verificacion numerica: ambas formas deben coincidir
+  coinciden_L    <- all(abs(L - L2)       < 1e-10)
+  coinciden_Tend <- all(abs(Tend - Tend2) < 1e-10)
+  
+  # Pronostico extramuestral: Y_{T+h} = L_T + T_T * h
+  forecast_fn <- function(h) L[T_obs] + Tend[T_obs] * h
+  
+  list(
+    metodo          = paste("parametros alpha =", alpha, "beta =", beta),
+    alpha           = alpha,
+    beta            = beta,
+    L               = L,          # trayectoria nivel
+    Tend            = Tend,        # trayectoria pendiente
+    fitted          = fitted,
+    residuals       = residuals,
+    forecast_fn     = forecast_fn, # ingresa h, devuelve pronostico
+    coinciden_L     = coinciden_L,
+    coinciden_Tend  = coinciden_Tend,
+    T_observaciones = T_obs
+  )
   
   
 }
