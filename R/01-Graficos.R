@@ -49,7 +49,7 @@ Graficar_serie <- function(serie, titulo) {
 }
 
 
-## Correlograma
+## Correlograma con pacf
 
 correlograma <- function(datos, m = NULL) {
   
@@ -210,8 +210,8 @@ correlograma <- function(datos, m = NULL) {
   max_dif <- max(abs(tabla_acf$acf - acf_stats))
   
   
-  cat(sprintf("Máxima diferencia absoluta Entre la ACF calculada y la de R  \n",
-              max_dif))
+  print("Maxima diferencia absoluta:")
+  print(max_dif)
 
   
   # Devolver invisiblemente los valores calculados
