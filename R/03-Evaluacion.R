@@ -3,8 +3,8 @@
 
 ljung_box <- function(r, T_obs, m, p = 0) {
   
-  # r = (residuos, valores, errores), T_obs= total de observaciones
-  # m = periodo estacional p = 
+  # r = (acf muestral, valores, errores), T_obs= total de observaciones
+  # m = periodo estacional p = parametros a ajustar si es sobre un modelo
   
   # Estadistico Qm
   h     <- 1:m
