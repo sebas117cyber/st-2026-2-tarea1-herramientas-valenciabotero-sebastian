@@ -1,11 +1,14 @@
 # esto es del d punto 1
 
 
-ljung_box <- function(r, T, m, p = 0) {
+ljung_box <- function(r, T_obs, m, p = 0) {
+  
+  # r = residuos, T_obs= total de observaciones
+  # m = periodo estacional p = 
   
   # Estadistico Qm
   h     <- 1:m
-  Qm    <- T * (T + 2) * sum(r[h]^2 / (T - h))
+  Qm    <- T_obs * (T_obs + 2) * sum(r[h]^2 / (T_obs - h))
   
   # Grados de libertad
   df    <- m - p
@@ -29,6 +32,8 @@ ljung_box <- function(r, T, m, p = 0) {
 # prueba jarque 
 
 jarque_bera <- function(e) {
+  
+  # e = errores
   
   N  <- length(e)
   me <- mean(e)
@@ -68,6 +73,8 @@ jarque_bera <- function(e) {
 
 
 durbin_watson <- function(e) {
+  
+  # errores
   
   n   <- length(e)
   

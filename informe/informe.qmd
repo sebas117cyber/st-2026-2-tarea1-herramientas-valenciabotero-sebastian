@@ -1,0 +1,33 @@
+---
+title: "Informe Tarea 1"
+author: "sebastian valencia botero"
+lang: es
+date: last-modified
+date-format: long
+format: 
+  html:
+    embed-resources: true
+    smooth-scroll: true
+    theme: Cerulean
+    fontcolor: "#2E2E2E"
+    toc: true
+    toc-location: right
+    toc-title: Tabla de contenido
+    toc-depth: 3
+    code-fold: true
+execute:
+  echo: true
+  warning: false
+editor: source
+css: estilo1.css
+---
+
+# Informe Ejemplo 1
+
+```{r}
+
+
+
+```
+
+

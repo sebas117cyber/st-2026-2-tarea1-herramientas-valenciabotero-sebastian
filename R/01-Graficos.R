@@ -11,9 +11,15 @@ library(patchwork)
 
 Graficar_serie <- function(serie, titulo) {
   
+  fuente <- attr(serie, "fuente")
+  unidad <- attr(serie, "unidad")
+  
+  
   colnames(serie) <- c("t", "fecha", "valores")
   # nivel general
   nivel_general <- mean(serie$valores, na.rm = TRUE)
+  
+  t_obs <- length(serie$valores)
   
   # Construir el gráfico
   p <- ggplot(serie, aes(x = fecha, y = valores)) +
@@ -38,7 +44,11 @@ Graficar_serie <- function(serie, titulo) {
       title    = titulo,
       subtitle = NULL,
       x        = "Fecha",
-      y        = "Valor"
+      y        = paste("Valor(", unidad, ")", sep = ""), 
+      caption = paste(
+        "Fuente:", fuente, 
+        "observaciones:", t_obs
+      )
     ) +
     
     # Tema limpio

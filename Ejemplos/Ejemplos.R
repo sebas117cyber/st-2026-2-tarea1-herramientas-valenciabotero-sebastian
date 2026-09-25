@@ -2,12 +2,26 @@
 
 library(tidyverse);library(purrr);library(patchwork)
 
-# datos ejemplo 
+# ejemplo 1
 
-Prueba_leer <- leer_serie(nottem)
-attr(Prueba_leer, "fuente")
+AirPassengers, 
+
+, , , , lynx,
+LakeHuron, UKgas, sunspot.year, WWWusage, austres, JohnsonJohnson, UKDriverDeaths, nottem,
+discoveries y Seatbelts
 
 
-Graficar_serie(Prueba_leer, titulo = "Temperatura en Nottingham")
+# ejemplo 2
+Nile
+# ejemplo 3
+airmiles
+# ejemplo 4
+co2
+# ejemplo 5
+USAccDeaths
+# ejemplo 6
+lynx
+# ejemplo 7
 
-correlograma(Prueba_leer)
+
+# ejemplo 9
