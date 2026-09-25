@@ -550,6 +550,12 @@ ajustar_holt <- function(y, alpha, beta) {
   )
 }
 
+# calculo de errores
+# MSE  <- mean(modelo$residuales^2,            na.rm = TRUE)
+# MAE  <- mean(abs(modelo$residuales),          na.rm = TRUE)
+# MAPE <- mean(abs(modelo$residuales / y)*100,  na.rm = TRUE)
+
+
 
 # # Rejillas definidas 
 # rejilla_mm   <- data.frame(k     = 2:12)

@@ -3,7 +3,7 @@
 
 ljung_box <- function(r, T_obs, m, p = 0) {
   
-  # r = residuos, T_obs= total de observaciones
+  # r = (residuos, valores, errores), T_obs= total de observaciones
   # m = periodo estacional p = 
   
   # Estadistico Qm
@@ -24,7 +24,7 @@ ljung_box <- function(r, T_obs, m, p = 0) {
     estadistico  = round(Qm,   4),
     df           = df,
     valor_critico_5pct = round(cv, 4),
-    p_value      = round(pval, 4),
+    p_value      = pval,
     rechazo_H0   = pval < 0.05
   )
 }

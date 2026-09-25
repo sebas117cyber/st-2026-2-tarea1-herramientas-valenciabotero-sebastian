@@ -44,7 +44,7 @@ Graficar_serie <- function(serie, titulo) {
       title    = titulo,
       subtitle = NULL,
       x        = "Fecha",
-      y        = paste("Valor(", unidad, ")", sep = ""), 
+      y        = paste("(", unidad, ")", sep = ""), 
       caption = paste(
         "Fuente:", fuente, 
         "observaciones:", t_obs
