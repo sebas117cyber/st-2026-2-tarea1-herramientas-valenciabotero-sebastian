@@ -529,4 +529,72 @@ mad_ing_est_co2 <- mean(abs(diff(tramo_co2_est$valores)))
 MASE_co2_lin  <- mean(abs(err_val_co2))  / mad_ing_est_co2
 MASE_co2_ing  <- mean(abs(err_ing_co2))  / mad_ing_est_co2
 
+# Validación de errores
+val_co2 <- validar_errores(modelo_co2_lin, co2_serie, m = 24, p = 2)
+
+
+grafico_final(co2_serie, modelo_co2_lin, h_co2,
+              "CO₂ Mauna Loa: tendencia lineal — ajuste y pronóstico",
+              "ej5_co2_final.png")
+
+
+# ejemplo 6 cuadratica
+
+air_serie <- leer_serie(
+  AirPassengers,
+  fuente = "Box, G. E. P., Jenkins, G. M. and Reinsel, G. C. (1976).
+             Time Series Analysis, Forecasting and Control. 3rd ed.
+             Holden-Day. Series G.",
+  unidad = "pasajeros (miles)"
+)
+
+# Grafico y correlograma
+p_airp <- Graficar_serie(air_serie,
+                         "Pasajeros mensuales internacionales 1949–1960")
+ggsave("figs/ej6_airpass_serie.png", p_airp, width = 9, height = 4)
+corr_airp <- correlograma(air_serie, m = 24)
+
+# lb 
+lb_airp <- ljung_box(corr_airp$acf, T_obs = 144, m = 24, p = 0)
+print(lb_airp)
+
+
+# particion
+
+
+T_airp  <- nrow(air_serie)
+h_airp  <- min(12L, floor(0.2 * T_airp))   # = 12
+tramo_airp_est  <- slice_head(air_serie, n = T_airp - h_airp)
+tramo_airp_veri <- tail(air_serie, h_airp)
+
+# ajuste
+
+modelo_airp_cua <- ajustar_tendencia(tramo_airp_est$valores, "cuadratica")
+
+# Ingenuo
+ingenuo_airp_val <- rep(tail(tramo_airp_est$valores, 1), h_airp)
+
+
+# Métricas
+res_airp <- modelo_airp_cua$residuales
+MSE_airp_est  <- mean(res_airp^2)
+MAD_airp_est  <- mean(abs(res_airp))
+MAPE_airp_est <- mean(abs(res_airp / tramo_airp_est$valores) * 100)
+
+pron_airp     <- modelo_airp_cua$pronosticar(h_airp)
+err_val_airp  <- tramo_airp_veri$valores - pron_airp
+err_ing_airp  <- tramo_airp_veri$valores - ingenuo_airp_val
+
+mad_ing_est_airp <- mean(abs(diff(tramo_airp_est$valores)))
+MASE_airp_cua  <- mean(abs(err_val_airp))  / mad_ing_est_airp
+MASE_airp_ing  <- mean(abs(err_ing_airp))  / mad_ing_est_airp
+
+
+# Validacion
+val_airp <- validar_errores(modelo_airp_cua, air_serie, m = 12, p = 3)
+
+# grafico final
+grafico_final(air_serie, modelo_airp_cua, h_airp,
+              "AirPassengers: tendencia cuadrática — ajuste y pronóstico",
+              "ej6_airpass_final.png")
 

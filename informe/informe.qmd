@@ -25,7 +25,7 @@ css: estilo1.css
 ```{r}
 # paquetes
 
-library(tidyverse);library(purrr);library(patchwork);library(tsibble)
+library(tidyverse);library(purrr);library(patchwork);library(tsibble);library(kableExtra)
 
 
 ```
@@ -34,34 +34,38 @@ library(tidyverse);library(purrr);library(patchwork);library(tsibble)
 
 # Informe Ejemplo 1
 
-## lectura de serie y graficos
+### lectura de serie y graficos
 
 ```{r}
-air_serie <- leer_serie(AirPassengers, "Box, G. E. P., Jenkins, G. M. and Reinsel, G. C. (1976) Time Series Analysis, Forecasting and Control. Third Edition. Holden-Day. Series G.", 
-                        "pasageros(miles)")    # metodo lineal puede
-air_grafico <- Graficar_serie(air_serie, 
-                              "Monthly totals of international airline passengers, 1949 to 1960.") # tipo 4 tendencia estacional 
+nile_serie <- leer_serie(
+  Nile,
+  fuente = "Durbin, J. and Koopman, S. J. (2001). Time Series Analysis
+             by State Space Methods. Oxford University Press.",
+  unidad = "flujo de agua (10^8 m³)"
+)
+
+p_nile <- Graficar_serie(nile_serie, "Caudal anual del río Nilo 1871–1970")
+
 
 ```
 
+serie que parece aleatoria con cambio estructural
 
-Serie que muestra datos de frecuencias de pasageros mensualmente desde el 49 hasta el 60.
-La serie presenta una clara tendencia y es estacional a lo largo de ella. por lo que se considera como una serie tipo 4
 
 ### Correlograma 1
 ```{r}
-air_correlograma <- correlograma(air_serie)
+corr_nile <- correlograma(nile_serie, m = 20)
 ```
 
 
-Con el correlograma se cofirma visualmente el decrecimiento lento que indica tendencia y de la PACF se puede ver la estacionalidad de la serie por lo que es una serie tipo 4 con tendencia y estacionalidad
-
+Corrlograma que tiende decrecimiento lento pero que rapidamente se vuelo cero, puede servir el ingenuo o una media simple
 
 ### prueba ljun_box sobre la serie con p = o
 
 ```{r}
 
-air_ljun <- ljung_box(air_serie$valores, 144, 12)
+lb_nile <- ljung_box(corr_nile$acf, T_obs = 100, m = 20, p = 0)
+print(lb_nile)
 
 ```
 
@@ -72,12 +76,12 @@ La prueba rechaza $H_0$ por lo que al menos 1 rezago en el periodo estacional es
 ### Particion de tramos
 
 ```{r}
-air_h_tramo <- min(12, (0.2*144)) # por tener tendencia # ciclo es 12
-print(air_h_tramo)
+T_nile      <- nrow(nile_serie)
+h_nile      <- min(12L, floor(0.2 * T_nile))   # = 20
 
-tramo_estimado_air <- air_serie |> 
-  slice_head(n = nrow(air_serie) - air_h_tramo)
-tramo_air_veri <- tail(air_serie, 12)
+
+tramo_nile_est  <- slice_head(nile_serie, n = T_nile - h_nile)
+tramo_nile_veri <- tail(nile_serie, h_nile)
 
 ```
 
@@ -85,52 +89,43 @@ tramo_air_veri <- tail(air_serie, 12)
 ### ajuste del modelo ingenuo 
 
 ```{r}
-ingenuo_air <- ajusta_media(air_serie$valores)
 
-knitr::kable(
-  data.frame(
-    Parámetro    = "Media final",
-    Valor        = round(ingenuo_air$parametros$media_final, 4)
-  ),
-  caption = "Parámetros — Media simple"
-)
+# ingenuo
+
+ingenuo_nile_val <- rep(tramo_nile_est$valores[nrow(tramo_nile_est)],
+                        h_nile)
+
 ```
 
 
 
 
-### ajuste del modelo cuadratico
+### ajuste del modelo
 
 ```{r}
-modelo_tramoES <- ajustar_tendencia(tramo_estimado_air$valores, "cuadratica")
-
-
-knitr::kable(
-  modelo_tramoES$tabla,
-  digits  = 4,
-  caption = "Coeficientes — Tendencia cuadrática"
-)
-
-knitr::kable(
-  data.frame(
-    Métrica = c("R²", "σ²", "Durbin-Watson"),
-    Valor   = c(round(modelo_tramoES$r2,     4),
-                round(modelo_tramoES$sigma2, 4),
-                round(modelo_tramoES$dw,     4))
-  ),
-  caption = "Métricas globales — Tendencia cuadrática"
-)
+# ajuste 
+modelo_nile <- ajusta_media(tramo_nile_est$valores)
 
 ```
 
 
-Se escoge el modelo cuadratico debido a que existe tendencia, la pruena ljung-box demuestra que estadisticamente existen rezagos diferentes a cero 
+
 
 
 ### validacion del modelo con pruebas de hipotesis
 
 ```{r}
-validacio_tramoES <- validar_errores(modelo_tramoES, air_serie, m = 12, p = 3)
+# metricas estimacion para el tramo
+
+res_est_nile <- modelo_nile$residuales
+MSE_nile_est  <- mean(res_est_nile^2,  na.rm = TRUE)
+MAD_nile_est  <- mean(abs(res_est_nile), na.rm = TRUE)
+MAPE_nile_est <- mean(abs(res_est_nile /
+                            tramo_nile_est$valores) * 100, na.rm = TRUE)
+cat(sprintf("\nMétricas estimación — MSE=%.2f  MAD=%.2f  MAPE=%.2f%%\n",
+            MSE_nile_est, MAD_nile_est, MAPE_nile_est))
+
+
 
 ```
 Los errores no 
@@ -141,19 +136,177 @@ Los errores no
 
 ### Comparacion de pronosticos vs validacion
 
-```{r}
-# la diferencia entre los pronosticados y validacion
-
-Air_pronos <- modelo_tramoES$pronosticar(12)
-cat("pronosticos  \n")
-print(Air_pronos)
-cat("Tramo de validacion")
-print(tramo_air_veri$valores)
-
-
-```
 
 
 
 
+# informe Ejemplo 2 
+
+
+### lectura y grafico
+
+
+
+
+### correlograma
+
+
+### prueba ljun_box sobre la serie con p = o
+
+
+
+
+### particion de tramos
+
+
+
+### Ajuste ingenuo
+
+
+### ajuste de exponencial
+
+
+
+### validacion del modelo
+
+
+### pronosticos vs tramo de mvalidacion
+
+
+# Ejemplo 3
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+
+# Ejemplo 4
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+
+# Ejemplo 5
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+# Ejemplo 6
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+
+
+# Ejemplo 7
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+# Ejemplo 8
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
+
+
+
+# contra ejemplo con ejemplo 2
+
+### lectura y grafico
+
+### Correlograma
+
+### Prueba ljung- box
+
+### particion de tramos
+
+### ajuste del ingenuo
+
+### ajuste modelo
+
+### validacion del modelo
+
+### pronosticos vs validacion
 
