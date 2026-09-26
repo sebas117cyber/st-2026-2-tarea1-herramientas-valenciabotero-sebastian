@@ -13,6 +13,10 @@ se desarrolla la tarea 1 de series de tiempo univariados contiene:
 
 ## archivos
 
+## uso de AI
+
+se uso claude 4.6 sonnet 
+
 ## contenido
 
 # como se ejecuta
