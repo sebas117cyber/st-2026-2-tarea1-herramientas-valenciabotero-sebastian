@@ -276,6 +276,66 @@ lb_air <- ljung_box(corr_air$acf, T_obs = 24, m = 6, p = 0)
 print(lb_air)
 
 
+# particion
+
+T_air   <- nrow(airmiles_serie)
+h_air   <- min(12L, floor(0.2 * T_air))   # = 4.8 ~ 4)
+tramo_air_est  <- slice_head(airmiles_serie, n = T_air - h_air)
+tramo_air_veri <- tail(airmiles_serie, h_air)
+
+# optimizacion de resultado
+
+rejilla_mm_air <- data.frame(k = 3:12)
+opt_air        <- optimizar(tramo_air_est$valores, "mm", rejilla_mm_air)
+k_opt_air      <- opt_air$optimo$k # = 3
+cat(sprintf("\nk óptimo MM = %d  (MSE = %.2f)\n",
+            k_opt_air, opt_air$optimo$mse))
+
+
+p_mse_air <- graficar_mse_1d(opt_air, "k", "MSE vs k — Media Móvil (airmiles)")
+
+# ajuste
+modelo_air_mm <- ajustar_mm(tramo_air_est$valores, k = k_opt_air)
+
+# Ingenuo
+ingenuo_air_val <- rep(tail(tramo_air_est$valores, 1), h_air)
+
+# metricas
+
+res_air <- modelo_air_mm$residuales
+MSE_air_est  <- mean(res_air^2,  na.rm = TRUE)
+MAD_air_est  <- mean(abs(res_air), na.rm = TRUE)
+MAPE_air_est <- mean(abs(res_air /
+                           tramo_air_est$valores) * 100, na.rm = TRUE)
+
+pron_air     <- modelo_air_mm$pronosticar(h_air)
+err_val_air  <- tramo_air_veri$valores - pron_air
+err_ing_air  <- tramo_air_veri$valores - ingenuo_air_val
+
+mad_ing_est_air <- mean(abs(diff(tramo_air_est$valores)))
+MASE_air_mm  <- mean(abs(err_val_air))  / mad_ing_est_air
+MASE_air_ing <- mean(abs(err_ing_air))  / mad_ing_est_air
+
+cat(sprintf("Estimación — MSE=%.2f  MAD=%.2f  MAPE=%.2f%%\n",
+            MSE_air_est, MAD_air_est, MAPE_air_est))
+cat(sprintf("Validación — MASE modelo=%.4f   MASE ingenuo=%.4f\n",
+            MASE_air_mm, MASE_air_ing))
+
+# validacion de error
+
+val_air <- validar_errores(modelo_air_mm, airmiles_serie, m = 6, p = 0)
+
+# grafico final 
+modelo_air_mm$ajustados <- modelo_air_mm$Ajustados
+grafico_final(airmiles_serie, modelo_air_mm, h_air,
+              sprintf("airmiles: Media Móvil k=%d — ajuste y pronóstico",
+                      k_opt_air),
+              "ej2_airmiles_final.png")
+
+
+
+
+
 
 
 # nile_serie <- leer_serie(Nile)
