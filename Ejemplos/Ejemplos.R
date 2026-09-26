@@ -333,42 +333,200 @@ grafico_final(airmiles_serie, modelo_air_mm, h_air,
               "ej2_airmiles_final.png")
 
 
+# ejemplo 3 aleatorio 
+
+# lectura
+www_serie <- leer_serie(
+  WWWusage,
+  fuente = "Durbin, J. and Koopman, S. J. (2001). Time Series Analysis
+             by State Space Methods. Oxford University Press.",
+  unidad = "numero de usuarios"
+)
+
+
+
+# graficas
+p_www <- Graficar_serie(www_serie, "Usuarios WWW por minuto (100 minutos)")
+ggsave("figs/ej3_www_serie.png", p_www, width = 9, height = 4)
+corr_www <- correlograma(www_serie, m = 24)
+
+# lb
+lb_www <- ljung_box(corr_www$acf, T_obs = 100, m = 24, p = 0)
+print(lb_www)
+
+# particion
+
+T_www   <- nrow(www_serie)
+h_www   <- min(12L, floor(0.2 * T_www))   # = 12, floor = 20
+tramo_www_est  <- slice_head(www_serie, n = T_www - h_www)
+tramo_www_veri <- tail(www_serie, h_www)
+
+# optimo para ses
+rejilla_ses_www <- data.frame(alpha = seq(0.02, 0.98, by = 0.02))
+opt_www         <- optimizar(tramo_www_est$valores, "ses", rejilla_ses_www)
+alpha_opt_www   <- opt_www$optimo$alpha
+
+p_mse_www <- graficar_mse_1d(opt_www, "alpha",
+                             "MSE vs alpha — SES (WWWusage)")
+
+
+# ajuste 
+
+modelo_www_ses <- ajustar_ses(tramo_www_est$valores, alpha = alpha_opt_www)
+
+# Ingenuo
+ingenuo_www_val <- rep(tail(tramo_www_est$valores, 1), h_www)
+
+# 7.
+res_www <- modelo_www_ses$residuales
+MSE_www_est  <- mean(res_www^2,  na.rm = TRUE)
+MAD_www_est  <- mean(abs(res_www), na.rm = TRUE)
+MAPE_www_est <- mean(abs(res_www /
+                           tramo_www_est$valores) * 100, na.rm = TRUE)
+
+pron_www     <- modelo_www_ses$pronosticar(h_www)
+err_val_www  <- tramo_www_veri$valores - pron_www
+err_ing_www  <- tramo_www_veri$valores - ingenuo_www_val
+
+mad_ing_est_www <- mean(abs(diff(tramo_www_est$valores)))
+MASE_www_ses <- mean(abs(err_val_www))  / mad_ing_est_www
+MASE_www_ing <- mean(abs(err_ing_www))  / mad_ing_est_www
+
+# validacio 
+val_www <- validar_errores(modelo_www_ses, www_serie, m = 12, p = 1)
+
+# grafico final
+modelo_www_ses$ajustados <- modelo_www_ses$Ajustados
+grafico_final(www_serie, modelo_www_ses, h_www,
+              sprintf("WWWusage: SES alpha=%.2f — ajuste y pronóstico",
+                      alpha_opt_www),
+              "ej3_www_final.png")
+
+#ejemplo 4 doble media movil aunque parece aleatoria
+
+lake_serie <- leer_serie(
+  LakeHuron,
+  fuente = "Brockwell, P. J. and Davis, R. A. (1991). Time Series and
+             Forecasting Methods. 2nd ed. Springer.",
+  unidad = "nivel de agua en pies"
+)
+
+# Grafico y correlograma
+p_lake <- Graficar_serie(lake_serie,
+                         "Nivel del Lago Hurón 1875–1972")
+ggsave("figs/ej4_lake_serie.png", p_lake, width = 9, height = 4)
+corr_lake <- correlograma(lake_serie, m = 20)
+
+
+# lb
+lb_lake <- ljung_box(corr_lake$acf, T_obs = 98, m = 20, p = 0)
+print(lb_lake)
+
+
+#  Particion
+T_lake   <- nrow(lake_serie)
+h_lake   <- min(12L, floor(0.2 * T_lake))   # = 12
+tramo_lake_est  <- slice_head(lake_serie, n = T_lake - h_lake)
+tramo_lake_veri <- tail(lake_serie, h_lake)
+
+# optimizacion DMM
+
+rejilla_dmm_lake <- data.frame(k = 3:12)
+opt_lake         <- optimizar(tramo_lake_est$valores, "dmm", rejilla_dmm_lake)
+k_opt_lake       <- opt_lake$optimo$k
+
+p_mse_lake <- graficar_mse_1d(opt_lake, "k",
+                              "MSE vs k — DMM (LakeHuron)")
+ggsave("figs/ej4_lake_mse_k.png", p_mse_lake, width = 7, height = 4)
+
+
+# Ajuste
+modelo_lake_dmm <- ajustar_dmm(tramo_lake_est$valores, k = k_opt_lake)
+
+# Ingenuo
+ingenuo_lake_val <- rep(tail(tramo_lake_est$valores, 1), h_lake)
+
+
+# Métricas
+res_lake <- modelo_lake_dmm$residuales
+MSE_lake_est  <- mean(res_lake^2,  na.rm = TRUE)
+MAD_lake_est  <- mean(abs(res_lake), na.rm = TRUE)
+MAPE_lake_est <- mean(abs(res_lake /
+                            tramo_lake_est$valores) * 100, na.rm = TRUE)
+
+pron_lake     <- modelo_lake_dmm$pronosticar(h_lake)
+err_val_lake  <- tramo_lake_veri$valores - pron_lake
+err_ing_lake  <- tramo_lake_veri$valores - ingenuo_lake_val
+
+mad_ing_est_lake <- mean(abs(diff(tramo_lake_est$valores)))
+MASE_lake_dmm  <- mean(abs(err_val_lake))  / mad_ing_est_lake
+MASE_lake_ing  <- mean(abs(err_ing_lake))  / mad_ing_est_lake
+
+
+# Validación de errores
+val_lake <- validar_errores(modelo_lake_dmm, lake_serie, m = 10, p = 0)
+
+# Gráfico final
+modelo_lake_dmm$ajustados <- modelo_lake_dmm$Ajustados
+grafico_final(lake_serie, modelo_lake_dmm, h_lake,
+              sprintf("LakeHuron: DMM k=%d — ajuste y pronóstico",
+                      k_opt_lake),
+              "ej4_lake_final.png")
 
 
 
 
-
-# nile_serie <- leer_serie(Nile)
-# Graficar_serie(nile_serie, "Nile")  # aleatorio con cambio estructural
-# remove(nile_serie)
-
-# USAccDeaths_serie <- leer_serie(USAccDeaths)  # tipo 2
-# Graficar_serie(USAccDeaths_serie, "USAccDeaths") # mm o holt
-# remove(USAccDeaths_serie)
+# ejemplo 5 lineal 
 
 
-# LakeHuron_serie <- leer_serie(LakeHuron) # aleatorio con cambio estructural
-# Graficar_serie(LakeHuron_serie, "LakeHuron")
-# remove(LakeHuron_serie)
 
-# WWWusage_serie <- leer_serie(WWWusage) # rara aleatoria?
-# Graficar_serie(WWWusage_serie, "WWWusage") # esta en dias
-# remove(WWWusage_serie)
+co2_serie <- leer_serie(
+  co2,
+  fuente = "Keeling, C. D. and Whorf, T. P., Scripps Institution of
+             Oceanography (SIO), University of California, La Jolla.",
+  unidad = "CO2 (ppm)"
+)
+
+#  Gráfico y correlograma
+p_co2 <- Graficar_serie(co2_serie,
+                        "Concentración atmosférica ")
+ggsave("figs/ej5_co2_serie.png", p_co2, width = 9, height = 4)
+corr_co2 <- correlograma(co2_serie, m = 24)
+
+# lb
+
+lb_co2 <- ljung_box(corr_co2$acf, T_obs = 468, m = 24, p = 0)
+print(lb_co2)
 
 
-# austres_serie <- leer_serie(austres) # tipo 3 tendencia tan sapa
-# Graficar_serie(austres_serie, "austres")# lineal de lejos
-# remove(austres_serie)
-
-# UKDriverDeaths_serie <- leer_serie(UKDriverDeaths) # tipo 2 estacional con cambio estructural
-# Graficar_serie(UKDriverDeaths_serie, "UKDriverDeaths") 
-# remove(UKDriverDeaths_serie)
+#  4. Partición
+T_co2   <- nrow(co2_serie)
+h_co2   <- min(12, floor(0.2 * T_co2))   # = 12
+tramo_co2_est  <- slice_head(co2_serie, n = T_co2 - h_co2)
+tramo_co2_veri <- tail(co2_serie, h_co2)
 
 
-# nottem_serie <- leer_serie(nottem) # tipo 1 estacional en media
-# Graficar_serie(nottem_serie, "nottem") # le sirve los 4 metodos 
-# remove(nottem_serie)
 
-# discoveries_serie <- leer_serie(discoveries) # aleatoria
-# Graficar_serie(discoveries_serie, "discoveries")
-# remove(discoveries_serie)
+#ajuste
+
+modelo_co2_lin <- ajustar_tendencia(tramo_co2_est$valores, "lineal")
+
+# Ingenuo
+ingenuo_co2_val <- rep(tail(tramo_co2_est$valores, 1), h_co2)
+
+
+# Métricas
+res_co2 <- modelo_co2_lin$residuales
+MSE_co2_est  <- mean(res_co2^2)
+MAD_co2_est  <- mean(abs(res_co2))
+MAPE_co2_est <- mean(abs(res_co2 / tramo_co2_est$valores) * 100)
+
+pron_co2      <- modelo_co2_lin$pronosticar(h_co2)
+err_val_co2   <- tramo_co2_veri$valores - pron_co2
+err_ing_co2   <- tramo_co2_veri$valores - ingenuo_co2_val
+
+mad_ing_est_co2 <- mean(abs(diff(tramo_co2_est$valores)))
+MASE_co2_lin  <- mean(abs(err_val_co2))  / mad_ing_est_co2
+MASE_co2_ing  <- mean(abs(err_ing_co2))  / mad_ing_est_co2
+
+
