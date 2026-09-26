@@ -1,7 +1,5 @@
 # paquetes permitidps
 
-library(tidyverse);library(purrr);library(patchwork);library(tsibble)
-
 
 validar_errores <- function(modelo, serie, m = NULL, p = 0) {
   
@@ -111,93 +109,173 @@ validar_errores <- function(modelo, serie, m = NULL, p = 0) {
 }
 
 
-# ejemplo 1 # cuadratica
+grafico_final <- function(serie, modelo, h_val, titulo_graf,
+                          nombre_archivo) {
+  
+  T_total <- nrow(serie)
+  n_est   <- T_total - h_val          # observaciones de estimación
+  
+  # Ajustados sobre tramo de estimación (sin NA de calentamiento)
+  ajustados_df <- tibble(
+    fecha   = serie$fecha[1:n_est],
+    valores = modelo$ajustados %||% modelo$Ajustados,
+    tipo    = "Ajustado"
+  ) |> filter(!is.na(valores))
+  
+  # Pronósticos extramuestrales
+  pron_vals  <- modelo$pronosticar(h_val)
+  pron_df    <- tibble(
+    fecha   = serie$fecha[(n_est + 1):T_total],
+    valores = pron_vals,
+    tipo    = "Pronóstico"
+  )
+  
+  # Serie completa
+  serie_df <- tibble(
+    fecha   = serie$fecha,
+    valores = serie$valores,
+    tipo    = "Observado"
+  )
+  
+  p <- ggplot() +
+    geom_line(data = serie_df,
+              aes(x = fecha, y = valores, colour = tipo),
+              linewidth = 0.8) +
+    geom_line(data = ajustados_df,
+              aes(x = fecha, y = valores, colour = tipo),
+              linewidth = 0.8, linetype = "dashed") +
+    geom_line(data = pron_df,
+              aes(x = fecha, y = valores, colour = tipo),
+              linewidth = 1.0) +
+    geom_point(data = pron_df,
+               aes(x = fecha, y = valores, colour = tipo),
+               size = 2) +
+    scale_colour_manual(
+      values = c("Observado"   = "#00B2EE",
+                 "Ajustado"    = "#FF8C00",
+                 "Pronóstico"  = "#CC0000")
+    ) +
+    labs(title  = titulo_graf,
+         x      = "Fecha",
+         y      = attr(serie, "unidad"),
+         colour = NULL) +
+    theme_minimal(base_size = 13) +
+    theme(legend.position = "top")
+  
+  ggsave(file.path("figs", nombre_archivo), p,
+         width = 10, height = 5)
+  print(p)
+}
 
-# protocolo
-air_serie <- leer_serie(AirPassengers, "Box, G. E. P., Jenkins, G. M. and Reinsel, G. C. (1976) Time Series Analysis, Forecasting and Control. Third Edition. Holden-Day. Series G.", 
-                        "pasageros(miles)")    # metodo lineal puede
-air_grafico <- Graficar_serie(air_serie, 
-                              "Total de pasageros mensuales, 1949 to 1960."
-                              ) # tipo 4 tendencia estacional 
-
-air_correlograma <- correlograma(air_serie)
-# ljun-box serie
-air_ljun <- ljung_box(air_serie$valores, 144, 12)
+calc_mase <- function(errores_modelo, errores_ingenuo) {
+  mean(abs(errores_modelo), na.rm = TRUE) /
+    mean(abs(errores_ingenuo), na.rm = TRUE)
+}
 
 
-#tramos
-air_h_tramo <- min(12, (0.2*144)) # por tener tendencia # ciclo es 12
-print(air_h_tramo)
+# ejemplo 1 media simple
+nile_serie <- leer_serie(
+  Nile,
+  fuente = "Durbin, J. and Koopman, S. J. (2001). Time Series Analysis
+             by State Space Methods. Oxford University Press.",
+  unidad = "flujo de agua (10^8 m³)"
+)
+p_nile <- Graficar_serie(nile_serie, "Caudal anual del río Nilo 1871–1970")
 
-tramo_estimado_air <- air_serie |> 
-  slice_head(n = nrow(air_serie) - air_h_tramo)
-tramo_air_veri <- tail(air_serie, 12)
+# correlograma
+corr_nile <- correlograma(nile_serie, m = 20)
+# lb
+lb_nile <- ljung_box(corr_nile$acf, T_obs = 100, m = 20, p = 0)
+print(lb_nile)
+
+# particion
+
+T_nile      <- nrow(nile_serie)
+h_nile      <- min(12L, floor(0.2 * T_nile))   # = 20
 
 
+tramo_nile_est  <- slice_head(nile_serie, n = T_nile - h_nile)
+tramo_nile_veri <- tail(nile_serie, h_nile)
 
+
+# ajuste 
+modelo_nile <- ajusta_media(tramo_nile_est$valores)
+
+# ingenuo
+
+ingenuo_nile_val <- rep(tramo_nile_est$valores[nrow(tramo_nile_est)],
+                        h_nile)
+
+# metricas estimacion para el tramo
+
+res_est_nile <- modelo_nile$residuales
+MSE_nile_est  <- mean(res_est_nile^2,  na.rm = TRUE)
+MAD_nile_est  <- mean(abs(res_est_nile), na.rm = TRUE)
+MAPE_nile_est <- mean(abs(res_est_nile /
+                            tramo_nile_est$valores) * 100, na.rm = TRUE)
+cat(sprintf("\nMétricas estimación — MSE=%.2f  MAD=%.2f  MAPE=%.2f%%\n",
+            MSE_nile_est, MAD_nile_est, MAPE_nile_est))
+
+
+# pronosticos y validacion
+
+pron_nile   <- modelo_nile$pronosticar(h_nile)
+err_val_nile <- tramo_nile_veri$valores - pron_nile
+err_ing_nile <- tramo_nile_veri$valores - ingenuo_nile_val
+
+MSE_val_nile  <- mean(err_val_nile^2)
+MAD_val_nile  <- mean(abs(err_val_nile))
+MAPE_val_nile <- mean(abs(err_val_nile / tramo_nile_veri$valores) * 100)
+
+# mase ingenuo de estimacion
+
+ingenuo_est_nile <- rep(tramo_nile_est$valores[1],
+                        length(tramo_nile_est$valores))
+mad_ing_est_nile <- mean(abs(diff(tramo_nile_est$valores)))
+MASE_nile  <- MAD_val_nile  / mad_ing_est_nile
+MASE_ing   <- mean(abs(err_ing_nile)) / mad_ing_est_nile
+
+cat(sprintf("Métricas validación  — MSE=%.2f  MAD=%.2f  MAPE=%.2f%%\n",
+            MSE_val_nile, MAD_val_nile, MAPE_val_nile))
+cat(sprintf("MASE modelo=%.4f   MASE ingenuo=%.4f\n", MASE_nile, MASE_ing))
+
+val_nile <- validar_errores(modelo_nile, nile_serie, m = 10, p = 0)
 # ajuste air
 
-ingenuo_air <- ajusta_media(air_serie$valores)
 
-modelo_tramoES <- ajustar_tendencia(tramo_estimado_air$valores, "cuadratica")
-
-validacio_tramoES <- validar_errores(modelo_tramoES, air_serie, m = 12, p = 3)
-
-# la diferencia entre los pronosticados y validacion
-
-Air_pronos <- modelo_tramoES$pronosticar(12)
-print(Air_pronos)
-print(tramo_air_veri$valores)
-
-
-
-# ejemplo  2
-airmiles_serie <- leer_serie(airmiles) # cuadratica posibe
-Graficar_serie(airmiles_serie, "airmiles") # tendencia clara
-airmiles_correlograma <- correlograma(airmiles_serie)
-
-
-
-# ejemplo 3
-co2_serie <- leer_serie(co2) # tipo 4 tendencia con estacional 
-Graficar_serie(co2_serie, "co2") # metodo lineal
-
-
-
-# ejemplo 4
-
-lynx_serie <- leer_serie(lynx) # tipo 2 con ciclos
-Graficar_serie(lynx_serie, "lynx") # dmm?
-
-
-
-# ejemplo 5
-UKgas_serie <- leer_serie(UKgas) # tipo 4
-Graficar_serie(UKgas_serie, "UKgas") # parece exponencial
-
-# ejemplo 6
-sunspotyear_serie <- leer_serie(sunspot.year) # tipo 2 con ciclo
-Graficar_serie(sunspotyear_serie, "sunspot.year") # holt winters
+# graficos finales 
+modelo_nile_gf        <- modelo_nile
+modelo_nile_gf$ajustados <- modelo_nile$Ajustados
+grafico_final(nile_serie, modelo_nile_gf, h_nile,
+              "Nile: Media simple — ajuste y pronóstico",
+              "ej1_nile_final.png")
 
 
 
 
-# ejemplo 7
-JohnsonJohnson_serie <- leer_serie(JohnsonJohnson) # tipo 4
-Graficar_serie(JohnsonJohnson_serie, "JohnsonJohnson") # parece exponencial
-remove(JohnsonJohnson_serie)
+# ejemplo 2 media movil airmiles
+
+airmiles_serie <- leer_serie(
+  airmiles,
+  fuente = "F.A.A. Statistical Handbook of Aviation.",
+  unidad = "millas aereas (millones)"
+)
 
 
+# Grafico 
+
+p_air <- Graficar_serie(airmiles_serie,
+                        "Millas de pasajeros en vuelos comerciales 1937–1960")
+ggsave("figs/ej2_airmiles_serie.png", p_air, width = 9, height = 4)
+corr_air <- correlograma(airmiles_serie, m = min(floor(24/4), 24))
 
 
-# ejemplo 8
-Seatbelts_data <- as_tsibble(Seatbelts[, "DriversKilled"])
-datos_ts <- as.ts(Seatbelts_data)
-Seatbelts_serie <- leer_serie(datos_ts)
-Graficar_serie(Seatbelts_serie, "Seatbelts muertos") # estacional tipo 2
+# lb
 
-remove(Seatbelts_data)
-remove(datos_ts)
+lb_air <- ljung_box(corr_air$acf, T_obs = 24, m = 6, p = 0)
+print(lb_air)
+
+
 
 
 # nile_serie <- leer_serie(Nile)
